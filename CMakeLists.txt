@@ -33,6 +33,12 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/norm_vert.glsl ${CMAKE_CURRENT_BINARY
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bicubic_frag.glsl ${CMAKE_CURRENT_BINARY_DIR}/bicubic_frag.glsl COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/lanczos_frag.glsl ${CMAKE_CURRENT_BINARY_DIR}/lanczos_frag.glsl COPYONLY)
 
+set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mod_assets)
+set(DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/)
+file(COPY ${SOURCE_DIR} DESTINATION ${DEST_DIR})
+
+
+
 # Link SDL3 to your project
 target_link_libraries(opengl_test PRIVATE SDL3::SDL3-static  OpenGL::GL glad)
 

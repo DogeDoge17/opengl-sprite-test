@@ -1,0 +1,9 @@
+
+/_deps
+/cmake-build-debug
+/mod_assets
+*.a
+opengl_test
+cmake_install.cmake
+/.idea
+/.idea

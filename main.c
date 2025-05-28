@@ -7,6 +7,8 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+#include <stddef.h>
+
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -14,7 +16,7 @@
 #include "image_paths.h"
 
 //#define SPRITE_COUNT suki_sprites
-#define SPRITE_COUNT 60
+#define SPRITE_COUNT suki_sprites
 // int WINDOW_WIDTH  = 1280;
 // int WINDOW_HEIGHT = 720;
 int WINDOW_WIDTH  = 1920;
@@ -233,6 +235,14 @@ void changeShader(const GLuint* shader, const size_t choose) {
     CHECK_GL_ERRORS();
 }
 
+void shuffle_sprites(spite* sprites, const size_t spritec) {
+    for (size_t i = 0; i < spritec; i++) {
+        spite temp = sprites[i];
+        size_t j = rand() % spritec;
+        sprites[i] = sprites[j];
+        sprites[j] = temp;
+    }
+}
 
 
 int main(const int argc, char **argv)
@@ -295,8 +305,8 @@ int main(const int argc, char **argv)
     for (int i = 0; i < SPRITE_COUNT; i++) {
         sprites[i] = (spite){ 0 };
         sprites[i].texture = allSprites[texture];
-        sprites[i].scale = -900.0f;
-        sprites[i].x = rand() % WINDOW_WIDTH;   // Random position in window
+        sprites[i].scale = -1.0f;
+        sprites[i].x = rand() % WINDOW_WIDTH;
         sprites[i].y = rand() % WINDOW_HEIGHT;
 
         texture = ++texture % suki_sprites;
@@ -331,7 +341,6 @@ int main(const int argc, char **argv)
     glBindVertexArray(quadVAO);
     CHECK_GL_ERRORS();
 
-    int start =  rand() % SPRITE_COUNT;
 
     int running = 1;
     while (running) {
@@ -345,7 +354,7 @@ int main(const int argc, char **argv)
             } else if (ev.type == SDL_EVENT_KEY_DOWN) {
                 switch (ev.key.key) {
                     case SDLK_R:
-                        start =  rand() % SPRITE_COUNT;
+                        shuffle_sprites(sprites, SPRITE_COUNT);
                         break;
 
                     case SDLK_1:
@@ -380,8 +389,7 @@ int main(const int argc, char **argv)
         glClearColor(100/255.0f, 149/255.0f, 237/255.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-        //int i = 0;
-        int i =start;
+        int i = 0;
 
         Uint64 now = SDL_GetTicks ();
         float deltaTime = (now - lastTime) / 1000.0f;
@@ -400,7 +408,7 @@ int main(const int argc, char **argv)
             //sprites[i].rot += ((rand() % 100) / 500.0f - 0.1f) * deltaTime * 30.0f;
 
             float modelMatrix[16];
-            createTransformationMatrix(modelMatrix, sprites[i].x, sprites[i].y, sprites[i].scale, sprites[i].scale, sprites[i].rot);
+            createTransformationMatrix(modelMatrix, sprites[i].x, sprites[i].y, sprites[i].texture.width * sprites[i].scale, sprites[i].texture.height * sprites[i].scale, sprites[i].rot);
 
 
             GLint modelLoc = glGetUniformLocation(shaders[shaderUse], "model");
@@ -439,7 +447,7 @@ int main(const int argc, char **argv)
 
     free(allSprites);
     free(sprites);
-    glDeleteTextures(suki_sprites, allSprites);
+//    glDeleteTextures(suki_sprites, allSprites);
     SDL_GL_DestroyContext(gl_ctx);
     SDL_DestroyWindow(win);
     SDL_Quit();

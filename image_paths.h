@@ -31,10 +31,10 @@ static const char* images[] = {
 "mod_assets/backgrounds/atmosphere/sky/sky_night_rain.png",
 "mod_assets/backgrounds/atmosphere/sky/sky_night_sunny.png",
 "mod_assets/backgrounds/atmosphere/sky/sky_night_thunder.png",
-"mod_assets/backgrounds/beach/beach-day.png",
-"mod_assets/backgrounds/beach/beach-evening.png",
-"mod_assets/backgrounds/beach/beach-night.png",
-"mod_assets/backgrounds/beach/ocean.png",
+// "mod_assets/backgrounds/beach/beach-day.png",
+// "mod_assets/backgrounds/beach/beach-evening.png",
+// "mod_assets/backgrounds/beach/beach-night.png",
+// "mod_assets/backgrounds/beach/ocean.png",
 "mod_assets/backgrounds/classroom/classroom-day.png",
 "mod_assets/backgrounds/classroom/classroom-night.png",
 "mod_assets/backgrounds/classroom/decorations.png",
@@ -613,7 +613,7 @@ static const char* images[] = {
 "mod_assets/natsuki/headgear/jn_headgear_ahoge_small/sitting.png",
 "mod_assets/natsuki/headgear/jn_headgear_ahoge_swirl/sitting.png",
 "mod_assets/natsuki/headgear/jn_headgear_ahoge_swoop/sitting.png",
-"mod_assets/natsuki/headgear/jn_headgear_basic_headphones/sitting.png",
+// "mod_assets/natsuki/headgear/jn_headgear_basic_headphones/sitting.png",
 "mod_assets/natsuki/headgear/jn_headgear_basic_white_headband/sitting.png",
 "mod_assets/natsuki/headgear/jn_headgear_bee_headband/sitting.png",
 "mod_assets/natsuki/headgear/jn_headgear_black_beanie/sitting.png",
@@ -954,6 +954,6 @@ static const char* images[] = {
 "mod_assets/sticker/blank_cheer.png",
 "mod_assets/sticker/normal.png",
 };
-size_t suki_sprites = 947;
+size_t suki_sprites = sizeof(images) / sizeof(images[0]);
 
 #endif //IMAGE_PATHS_H
