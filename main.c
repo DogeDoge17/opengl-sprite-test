@@ -13,7 +13,8 @@
 #include "shaders.h"
 #include "image_paths.h"
 
-#define SPRITE_COUNT suki_sprites
+//#define SPRITE_COUNT suki_sprites
+#define SPRITE_COUNT 60
 // int WINDOW_WIDTH  = 1280;
 // int WINDOW_HEIGHT = 720;
 int WINDOW_WIDTH  = 1920;
@@ -214,7 +215,7 @@ void changeShader(const GLuint* shader, const size_t choose) {
         if (sharpnessLoc != -1) {
             glUniform1f(sharpnessLoc, 0.5f);
         }
-    }else if (choose == 2) { // lanczos
+    }else if (choose == 2 || choose == 7) { // lanczos
         GLint scaleFactorLoc = glGetUniformLocation(shader[choose], "u_ScaleFactor");
         if (scaleFactorLoc != -1) {
             //glUniform1f(scaleFactorLoc, (float)sprites[i].texture.width / (float)WINDOW_WIDTH);
@@ -320,6 +321,7 @@ int main(const int argc, char **argv)
         makeShaderProgram(loadShaderDir(catmull_rom_frag_shader,GL_FRAGMENT_SHADER) , vertexShader),
         makeShaderProgram(loadShaderDir(adaptive_sharpen_frag_shader,GL_FRAGMENT_SHADER) , vertexShader),
         makeShaderProgram(loadShaderDir(fsr_like_frag_shader,GL_FRAGMENT_SHADER) , vertexShader),
+        makeShaderProgram(loadShaderDir(sharp_lanczos_frag_shader,GL_FRAGMENT_SHADER) , vertexShader),
     };
     size_t shaderUse = 0;
 
@@ -328,6 +330,8 @@ int main(const int argc, char **argv)
     changeShader(shaders, shaderUse = 0);
     glBindVertexArray(quadVAO);
     CHECK_GL_ERRORS();
+
+    int start =  rand() % SPRITE_COUNT;
 
     int running = 1;
     while (running) {
@@ -340,6 +344,10 @@ int main(const int argc, char **argv)
                 glViewport(0, 0, WINDOW_WIDTH = ev.window.data1, WINDOW_HEIGHT = ev.window.data2);
             } else if (ev.type == SDL_EVENT_KEY_DOWN) {
                 switch (ev.key.key) {
+                    case SDLK_R:
+                        start =  rand() % SPRITE_COUNT;
+                        break;
+
                     case SDLK_1:
                         changeShader(shaders, shaderUse = 0);
                         break;
@@ -361,6 +369,9 @@ int main(const int argc, char **argv)
                     case SDLK_7:
                         changeShader(shaders, shaderUse = 6);
                         break;
+                    case SDLK_8:
+                        changeShader(shaders, shaderUse = 7);
+                        break;
                     default: ;
                 }
             }
@@ -369,23 +380,24 @@ int main(const int argc, char **argv)
         glClearColor(100/255.0f, 149/255.0f, 237/255.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-        int i = 0;
+        //int i = 0;
+        int i =start;
 
         Uint64 now = SDL_GetTicks ();
         float deltaTime = (now - lastTime) / 1000.0f;
         for (int j = 0; j < SPRITE_COUNT; ++j) {
             glBindTexture(GL_TEXTURE_2D, sprites[i].texture.textureID);
 
-            sprites[i].x += ((rand() % 100) / 5000.0f - 0.01f) * deltaTime * 60.0f;
-            if (sprites[i].x > WINDOW_WIDTH) sprites[i].x = 0;
-            if (sprites[i].x < 0) sprites[i].x = WINDOW_WIDTH;
-
-            sprites[i].y += ((rand() % 100) / 5000.0f - 0.01f) * deltaTime * 60.0f;
-            if (sprites[i].y > WINDOW_HEIGHT) sprites[i].y = 0;
-            if (sprites[i].y < 0) sprites[i].y = WINDOW_HEIGHT;
-
-
-            sprites[i].rot += ((rand() % 100) / 500.0f - 0.1f) * deltaTime * 30.0f;
+            //sprites[i].x += ((rand() % 100) / 5000.0f - 0.01f) * deltaTime * 60.0f;
+            //if (sprites[i].x > WINDOW_WIDTH) sprites[i].x = 0;
+            //if (sprites[i].x < 0) sprites[i].x = WINDOW_WIDTH;
+//
+            //sprites[i].y += ((rand() % 100) / 5000.0f - 0.01f) * deltaTime * 60.0f;
+            //if (sprites[i].y > WINDOW_HEIGHT) sprites[i].y = 0;
+            //if (sprites[i].y < 0) sprites[i].y = WINDOW_HEIGHT;
+//
+//
+            //sprites[i].rot += ((rand() % 100) / 500.0f - 0.1f) * deltaTime * 30.0f;
 
             float modelMatrix[16];
             createTransformationMatrix(modelMatrix, sprites[i].x, sprites[i].y, sprites[i].scale, sprites[i].scale, sprites[i].rot);
