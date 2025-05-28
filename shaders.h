@@ -322,7 +322,7 @@ const char* fsr_like_frag_shader =
         "    \n"
         "    // Single mad operation\n"
         "    vec4 blur = (top + bottom + left + right) * inv4;\n"
-        "    FragColor = center + (center - blur) * sharpness;\n"
+        "    FragColor = center + (center - blur) * sharpness ;\n"
         "}\n";
 
 

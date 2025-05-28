@@ -19,8 +19,8 @@
 #define SPRITE_COUNT suki_sprites
 // int WINDOW_WIDTH  = 1280;
 // int WINDOW_HEIGHT = 720;
-int WINDOW_WIDTH  = 1920;
-int WINDOW_HEIGHT = 1080;
+int WINDOW_WIDTH  = 1280;
+int WINDOW_HEIGHT = 720;
 
 
 typedef struct {
@@ -34,6 +34,21 @@ typedef struct {
     float scale;
     texture texture;
 } spite;
+
+typedef struct {
+    GLuint bufferId;
+    GLuint colorTexture;
+    int renderWidth, renderHeight;
+} framebuffer;
+
+
+framebuffer drawBuffer = {
+    0,
+    0,
+    1280,
+    720
+};
+
 
 static const char* gl_error_string(GLenum error) {
     switch (error) {
@@ -84,7 +99,6 @@ static texture* loadTextures(const char** paths, const size_t pathsc)
             return nullptr;
         }
 
-
         glBindTexture(GL_TEXTURE_2D, idsIDK[i]);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -108,7 +122,6 @@ GLuint loadShaderDir(const char* source, GLenum type) {
         fprintf(stderr, "Failed to create shader of type: %d\n", type);
         return 0;
     }
-
 
     glShaderSource(shader, 1, (const GLchar**)&source, NULL);
 
@@ -173,44 +186,43 @@ void setupQuad() {
     glEnableVertexAttribArray(2);
 
 
-
     CHECK_GL_ERRORS();
     //glBindVertexArray(0);
 }
 
 
-void createTransformationMatrix(float* matrix, float translateX, float translateY, float scaleX, float scaleY, float rotation) {
-    memset(matrix, 0, sizeof(float) * 16); // Reset to zero
-    matrix[15] = 1.0f; // Homogeneous coordinate
+void createTransformationMatrix(float* matrix, const float translateX, const float translateY, const float scaleX, const float scaleY, const float rotation) {
+    memset(matrix, 0, sizeof(float) * 16);
+    matrix[15] = 1.0f;
 
-    // Translation
     matrix[0] = cosf(rotation) * scaleX;
     matrix[1] = sinf(rotation) * scaleX;
     matrix[4] = -sinf(rotation) * scaleY;
     matrix[5] = cosf(rotation) * scaleY;
-    matrix[12] = translateX; // X-axis translation
-    matrix[13] = translateY; // Y-axis translation
+    matrix[12] = translateX;
+    matrix[13] = translateY;
 }
 
-void createOrthographicMatrix(float* matrix, float left, float right, float bottom, float top, float near, float far) {
+void createOrthographicMatrix(float* matrix, const float left, const float right,const float bottom, const float top, const float near, const float far) {
     memset(matrix, 0, sizeof(float) * 16);
-    matrix[0] = 2.0f / (right - left); // Scale X
-    matrix[5] = 2.0f / (top - bottom); // Scale Y
-    matrix[10] = -2.0f / (far - near); // Scale Z
-    matrix[12] = -(right + left) / (right - left); // Translate X
-    matrix[13] = -(top + bottom) / (top - bottom); // Translate Y
-    matrix[14] = -(far + near) / (far - near); // Translate Z
-    matrix[15] = 1.0f; // Homogeneous coordinate
+    matrix[0] = 2.0f / (right - left);
+    matrix[5] = 2.0f / (top - bottom);
+    matrix[10] = -2.0f / (far - near);
+    matrix[12] = -(right + left) / (right - left);
+    matrix[13] = -(top + bottom) / (top - bottom);
+    matrix[14] = -(far + near) / (far - near);
+    matrix[15] = 1.0f;
 }
 
-void changeShader(const GLuint* shader, const size_t choose) {
+void changeShader(const GLuint* shader, const size_t choose, float width, float height) {
     float projMatrix[16];
-    createOrthographicMatrix(projMatrix, 0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1.0f, 1.0f);
+    createOrthographicMatrix(projMatrix, 0, width, 0, height, -1.0f, 1.0f);
 
     glUseProgram(shader[choose]);
 
     GLint projLoc = glGetUniformLocation(shader[choose], "projection");
-    glUniformMatrix4fv(projLoc, 1, GL_FALSE, projMatrix);
+    if (projLoc != -1)
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, projMatrix);
 
     if (choose == 5) {
         GLint sharpnessLoc = glGetUniformLocation(shader[choose], "u_SharpnessAmount");
@@ -229,8 +241,6 @@ void changeShader(const GLuint* shader, const size_t choose) {
         }
     }
 
-    // Add missing uniforms for bicubic and lanczos shaders
-
 
     CHECK_GL_ERRORS();
 }
@@ -244,12 +254,31 @@ void shuffle_sprites(spite* sprites, const size_t spritec) {
     }
 }
 
+void calculateViewportWithAspectRatio(const int windowWidth, const int windowHeight, const int targetWidth, const  int targetHeight,  int* viewportX, int* viewportY, int* viewportWidth, int* viewportHeight) {
+    const float targetAspect = (float)targetWidth / (float)targetHeight;
+    const float windowAspect = (float)windowWidth / (float)windowHeight;
+
+    if (windowAspect > targetAspect) {
+        *viewportHeight = windowHeight;
+        *viewportWidth = (int)(windowHeight * targetAspect);
+        *viewportX = (windowWidth - *viewportWidth) / 2;
+        *viewportY = 0;
+    } else {
+        *viewportWidth = windowWidth;
+        *viewportHeight = (int)(windowWidth / targetAspect);
+        *viewportX = 0;
+        *viewportY = (windowHeight - *viewportHeight) / 2;
+    }
+}
+
+
 
 int main(const int argc, char **argv)
 {
 #ifdef linux
     setenv("SDL_VIDEODRIVER", "wayland", 1);
 #endif
+    srand((unsigned)time(NULL));
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         fprintf(stderr, "SDL_Init error: %s\n", SDL_GetError());
@@ -262,8 +291,15 @@ int main(const int argc, char **argv)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
+    if (!SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1))
+        fprintf(stderr, "SDL_GL_MULTISAMPLEBUFFERS error: %s\n", SDL_GetError());
+
+    if (!SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16))
+        fprintf(stderr, "SDL_GL_MULTISAMPLESAMPLES error: %s\n", SDL_GetError());
+
+
     SDL_Window *win = SDL_CreateWindow(
-        "lebron james feet porn (hot)",
+        "lebron james NOTHING (hot)",
         WINDOW_WIDTH, WINDOW_HEIGHT,
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
     );
@@ -272,7 +308,6 @@ int main(const int argc, char **argv)
         SDL_Quit();
         return 1;
     }
-
 
     SDL_GLContext gl_ctx = SDL_GL_CreateContext(win);
     if (!gl_ctx) {
@@ -287,14 +322,12 @@ int main(const int argc, char **argv)
         return -1;
     }
     glEnable(GL_BLEND);
+    glEnable(GL_MULTISAMPLE);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-
-
-
-   if (SDL_GL_SetSwapInterval(0) < 0) {
-       fprintf(stderr, "Warning: could not disable VSync: %s\n", SDL_GetError());
-   }
+    if (SDL_GL_SetSwapInterval(0) < 0) {
+        fprintf(stderr, "Warning: could not disable VSync: %s\n", SDL_GetError());
+    }
     CHECK_GL_ERRORS();
 
     texture* allSprites = loadTextures(images, suki_sprites);
@@ -305,21 +338,53 @@ int main(const int argc, char **argv)
     for (int i = 0; i < SPRITE_COUNT; i++) {
         sprites[i] = (spite){ 0 };
         sprites[i].texture = allSprites[texture];
-        sprites[i].scale = -1.0f;
+        sprites[i].scale = 0.5f;
         sprites[i].x = rand() % WINDOW_WIDTH;
         sprites[i].y = rand() % WINDOW_HEIGHT;
 
         texture = ++texture % suki_sprites;
     }
-
-
-    srand((unsigned)time(NULL));
-
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    Uint64 lastTime    = SDL_GetTicks();
-    Uint64 fpsTimer    = lastTime;
-    int    frameCount  = 0;
+
+    glViewport(0, 0, drawBuffer.renderWidth, drawBuffer.renderHeight);
+
+    glGenFramebuffers(1, &drawBuffer.bufferId);
+    glBindFramebuffer(GL_FRAMEBUFFER, drawBuffer.bufferId);
+    glGenTextures(1, &drawBuffer.colorTexture);
+    glBindTexture(GL_TEXTURE_2D, drawBuffer.colorTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, drawBuffer.renderWidth, drawBuffer.renderHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, drawBuffer.colorTexture, 0);
+    CHECK_GL_ERRORS();
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        fprintf(stderr, "Framebuffer is not complete: %d\n", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+        glDeleteFramebuffers(1, &drawBuffer.bufferId);
+        SDL_DestroyWindow(win);
+        SDL_Quit();
+    }
+
+    framebuffer msaaFBO = { 0 };
+    glGenFramebuffers(1, &msaaFBO.bufferId);
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.bufferId);
+
+    // Create a multisampled color attachment texture
+    glGenTextures(1, &msaaFBO.colorTexture);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, msaaFBO.colorTexture);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, drawBuffer.renderWidth, drawBuffer.renderHeight, GL_TRUE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, msaaFBO.colorTexture, 0);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        fprintf(stderr, "MSAA Framebuffer is not complete\n");
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 
     GLuint vertexShader = loadShaderDir(norm_vert_shader, GL_VERTEX_SHADER);
 
@@ -337,11 +402,15 @@ int main(const int argc, char **argv)
 
     setupQuad();
 
-    changeShader(shaders, shaderUse = 0);
+    changeShader(shaders, shaderUse = 0, drawBuffer.renderWidth, drawBuffer.renderHeight);
     glBindVertexArray(quadVAO);
     CHECK_GL_ERRORS();
 
+    bool msaaEnabled = true;
 
+    Uint64 lastTime    = SDL_GetTicks();
+    Uint64 fpsTimer    = lastTime;
+    int    frameCount  = 0;
     int running = 1;
     while (running) {
         SDL_Event ev;
@@ -351,46 +420,59 @@ int main(const int argc, char **argv)
             }
             else if (ev.type == SDL_EVENT_WINDOW_RESIZED) {
                 glViewport(0, 0, WINDOW_WIDTH = ev.window.data1, WINDOW_HEIGHT = ev.window.data2);
+                printf("resized (%d,%d)", ev.window.data1, ev.window.data2);
             } else if (ev.type == SDL_EVENT_KEY_DOWN) {
                 switch (ev.key.key) {
                     case SDLK_R:
                         shuffle_sprites(sprites, SPRITE_COUNT);
                         break;
-
+                    case SDLK_M:
+                        msaaEnabled = !msaaEnabled;
+                        printf("MSAA %s\n", msaaEnabled ? "enabled" : "disabled");
+                        break;
                     case SDLK_1:
-                        changeShader(shaders, shaderUse = 0);
+                        shaderUse = 0;
                         break;
                     case SDLK_2:
-                        changeShader(shaders, shaderUse = 1);
+                        shaderUse = 1;
                         break;
                     case SDLK_3:
-                        changeShader(shaders, shaderUse = 2);
+                        shaderUse = 2;
                         break;
                     case SDLK_4:
-                        changeShader(shaders, shaderUse = 3);
+                        shaderUse = 3;
                         break;
                     case SDLK_5:
-                        changeShader(shaders, shaderUse = 4);
+                        shaderUse = 4;
                         break;
                     case SDLK_6:
-                        changeShader(shaders, shaderUse = 5);
+                        shaderUse = 5;
                         break;
                     case SDLK_7:
-                        changeShader(shaders, shaderUse = 6);
+                         shaderUse = 6;
                         break;
                     case SDLK_8:
-                        changeShader(shaders, shaderUse = 7);
+                         shaderUse = 7;
                         break;
                     default: ;
                 }
             }
         }
 
+        glClearColor(0, 0, 0, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+
+        glBindFramebuffer(GL_FRAMEBUFFER, msaaEnabled ? msaaFBO.bufferId : drawBuffer.bufferId);
+        glViewport(0, 0, drawBuffer.renderWidth, drawBuffer.renderHeight);
         glClearColor(100/255.0f, 149/255.0f, 237/255.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
+        CHECK_GL_ERRORS();
+
+
+        changeShader(shaders, 0, drawBuffer.renderWidth, drawBuffer.renderHeight);
 
         int i = 0;
-
         Uint64 now = SDL_GetTicks ();
         float deltaTime = (now - lastTime) / 1000.0f;
         for (int j = 0; j < SPRITE_COUNT; ++j) {
@@ -399,28 +481,17 @@ int main(const int argc, char **argv)
             //sprites[i].x += ((rand() % 100) / 5000.0f - 0.01f) * deltaTime * 60.0f;
             //if (sprites[i].x > WINDOW_WIDTH) sprites[i].x = 0;
             //if (sprites[i].x < 0) sprites[i].x = WINDOW_WIDTH;
-//
+
             //sprites[i].y += ((rand() % 100) / 5000.0f - 0.01f) * deltaTime * 60.0f;
             //if (sprites[i].y > WINDOW_HEIGHT) sprites[i].y = 0;
             //if (sprites[i].y < 0) sprites[i].y = WINDOW_HEIGHT;
-//
-//
             //sprites[i].rot += ((rand() % 100) / 500.0f - 0.1f) * deltaTime * 30.0f;
 
             float modelMatrix[16];
-            createTransformationMatrix(modelMatrix, sprites[i].x, sprites[i].y, sprites[i].texture.width * sprites[i].scale, sprites[i].texture.height * sprites[i].scale, sprites[i].rot);
+            createTransformationMatrix(modelMatrix, sprites[i].x, sprites[i].y, sprites[i].texture.width * sprites[i].scale, -sprites[i].texture.height * sprites[i].scale, sprites[i].rot);
 
-
-            GLint modelLoc = glGetUniformLocation(shaders[shaderUse], "model");
+            const GLint modelLoc = glGetUniformLocation(shaders[shaderUse], "model");
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMatrix);
-
-            if (shaderUse != 0) { // bicubic or lanczos
-                GLint texSizeLoc = glGetUniformLocation(shaders[shaderUse], "u_TextureSize");
-                if (texSizeLoc != -1) {
-                    glUniform2f(texSizeLoc, (float)sprites[i].texture.width, (float)sprites[i].texture.height);
-                }
-            }
-
 
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
             CHECK_GL_ERRORS();
@@ -428,12 +499,59 @@ int main(const int argc, char **argv)
             i = ++i % SPRITE_COUNT;
         }
 
-        glBindTexture(GL_TEXTURE_2D, 0);
+        if (msaaEnabled) {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.bufferId);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawBuffer.bufferId);
+            glBlitFramebuffer(
+                0, 0, drawBuffer.renderWidth, drawBuffer.renderHeight,
+                0, 0, drawBuffer.renderWidth, drawBuffer.renderHeight,
+                GL_COLOR_BUFFER_BIT, GL_NEAREST
+            );
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glBindTexture(GL_TEXTURE_2D, drawBuffer.colorTexture);
+        CHECK_GL_ERRORS();
+
+        int viewportX, viewportY, viewportWidth, viewportHeight;
+        calculateViewportWithAspectRatio(WINDOW_WIDTH, WINDOW_HEIGHT, drawBuffer.renderWidth, drawBuffer.renderHeight, &viewportX, &viewportY, &viewportWidth, &viewportHeight);
+
+        changeShader(shaders, shaderUse, viewportWidth, viewportHeight);
+        glViewport(viewportX, viewportY, viewportWidth, viewportHeight);
+
+        float modelMatrix[16];
+        createTransformationMatrix(modelMatrix, 0, 0, viewportWidth, viewportHeight, 0);
+        const GLint modelLoc = glGetUniformLocation(shaders[shaderUse], "model");
+        if (modelLoc != -1)
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMatrix);
+        else
+            fprintf(stderr, "modelLoc not found");
+
+        if (shaderUse != 0) {
+            const GLint texSizeLoc = glGetUniformLocation(shaders[shaderUse], "u_TextureSize");
+            if (texSizeLoc != -1) {
+                glUniform2f(texSizeLoc, (float)viewportWidth, (float)viewportHeight);
+            }
+        }
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+        CHECK_GL_ERRORS();
+
+
+        //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        //glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+//
+        //float modelMatrix[16];
+        //createTransformationMatrix(modelMatrix, 0, WINDOW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+        //GLint modelLoc = glGetUniformLocation(shaders[shaderUse], "model");
+        //glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMatrix);
+        //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        //glBindTexture(GL_TEXTURE_2D, drawBuffer.colorTexture);
+        //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 
 
         SDL_GL_SwapWindow(win);
 
-        // FPS counting
         frameCount++;
         Uint64 now2 = SDL_GetTicks ();
         if (now2 - fpsTimer >= 1000) {
@@ -444,6 +562,8 @@ int main(const int argc, char **argv)
         }
         lastTime = now;
     }
+    glDeleteTextures(1, &drawBuffer.colorTexture);
+    glDeleteFramebuffers(1, &drawBuffer.bufferId);
 
     free(allSprites);
     free(sprites);
