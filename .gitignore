@@ -7,3 +7,7 @@ opengl_test
 cmake_install.cmake
 /.idea
 /.idea
+/CMakeFiles
+Makefile
+compile_commands.json
+CMakeCache.txt
