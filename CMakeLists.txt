@@ -26,7 +26,8 @@ add_library(glad glad/src/glad.c)
 target_include_directories(glad PUBLIC glad/include)
 
 add_executable(opengl_test main.c
-        image_paths.h)
+        image_paths.h
+)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/norm_frag.glsl ${CMAKE_CURRENT_BINARY_DIR}/norm_frag.glsl COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/norm_vert.glsl ${CMAKE_CURRENT_BINARY_DIR}/norm_vert.glsl COPYONLY)
