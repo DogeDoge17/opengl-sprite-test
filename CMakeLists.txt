@@ -11,15 +11,20 @@ set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 
 include(FetchContent)
 
-FetchContent_Declare(
+if(USE_SYSTEM_SDL3)
+find_package(SDL3 REQUIRED)
+else()
+    FetchContent_Declare(
         SDL3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
         GIT_TAG release-3.2.14
-)
+    )
+FetchContent_MakeAvailable(SDL3)
+endif()
+
 set(SDL_VIDEO_WAYLAND ON CACHE BOOL "" FORCE)
 set(SDL_VIDEO_X11 OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(SDL3)
 find_package(OpenGL REQUIRED)
 
 add_library(glad glad/src/glad.c)
@@ -34,18 +39,30 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/norm_vert.glsl ${CMAKE_CURRENT_BINARY
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bicubic_frag.glsl ${CMAKE_CURRENT_BINARY_DIR}/bicubic_frag.glsl COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/lanczos_frag.glsl ${CMAKE_CURRENT_BINARY_DIR}/lanczos_frag.glsl COPYONLY)
 
-set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mod_assets)
-set(DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/)
-file(COPY ${SOURCE_DIR} DESTINATION ${DEST_DIR})
+set(MOD_ASSETS_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/mod_assets" CACHE PATH "Directory with the jn mod_assets")
+set(DEST_DIR "${CMAKE_CURRENT_BINARY_DIR}/")
+file(COPY ${MOD_ASSETS_SOURCE} DESTINATION ${DEST_DIR})
 
 
+target_link_libraries(opengl_test PRIVATE 
+    SDL3::SDL3 
+    OpenGL::GL 
+    glad
+    m
+)
 
-# Link SDL3 to your project
-target_link_libraries(opengl_test PRIVATE SDL3::SDL3-static  OpenGL::GL glad)
-
-# Suppress warnings from SDL3's headers
 if (MSVC)
-    target_compile_options(opengl_test PRIVATE /wd4996) # Add MSVC-specific warning suppressions here if needed
+    target_compile_options(opengl_test PRIVATE /wd4996)
 else()
     target_compile_options(opengl_test PRIVATE -isystem ${SDL3_SOURCE_DIR}/include)
 endif()
+
+include(GNUInstallDirs)
+
+install(TARGETS opengl_test
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY ${MOD_ASSETS_SOURCE}
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
